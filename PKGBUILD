@@ -17,7 +17,7 @@
 
 pkgname=quixidesk
 pkgver=3.6556.12
-pkgrel=3
+pkgrel=4
 pkgdesc="Native Rust desktop workspace for AI — pluggable cloud and local providers, MCP tools, projects, schedules"
 arch=('x86_64')
 # GCC LTO must be off. makepkg appends -flto=auto to CFLAGS/LDFLAGS by default;
@@ -81,7 +81,7 @@ optdepends=(
 provides=('quixidesk')
 conflicts=('quixidesk-bin' 'quixidesk-git')
 source=(
-  "0053-journal.patch"
+  "0027-journal-and-ollama-cloud.patch"
   "0026-edition-label.patch"
   "${pkgname}-${pkgver}.tar.gz::https://github.com/QuixiAI/QuixiDesk/archive/refs/tags/v${pkgver}.tar.gz"
   "ydotoold.openrc"
@@ -109,7 +109,7 @@ source=(
   "0024-context-button-earns-its-place.patch"
   "0025-with-skill.patch"
 )
-sha256sums=('3dd5def3935b6dd26f57584389306487e9e59c45689d209c17f2d9695671852f'
+sha256sums=('bd4a041fc9b87647c0ba2eb59f204f8086a33f3f5006c8c4c1ccb11b19a62bac'
             'f090805ad11ddd9a757f3f7f54eb13c32f013feb357571a658ea3fda492d4d94'
             '0d447af0ebe5a9aa447e45cffe183c077647637994eb71ec22a29a179742484e'
             '7f0469f375334b97b3c046d0384bfd68a6f9157871c8b881f3f822ee1916e57c'
@@ -255,7 +255,7 @@ prepare() {
   patch -Np1 -i "${srcdir}/0025-with-skill.patch"
 
   # Journal: one file per session, appended in place. Input at send, reply on completion.
-  patch -Np1 -i "${srcdir}/0053-journal.patch"
+  patch -Np1 -i "${srcdir}/0027-journal-and-ollama-cloud.patch"
 
   # Edition label: which build this is, in bold parentheses in front of the name. The
   # value is a compile-time variable so the same tree can produce any edition.

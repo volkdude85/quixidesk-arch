@@ -1,53 +1,6 @@
-Journal: one file per session, appended in place
-================================================
-
-Input is recorded at send time, the reply when the turn completes, into one append-only file per
-session. Both backends write the same format, so a session recorded by the desktop app is readable by
-the Hermes-side hooks and vice versa.
-
-WHY APPEND AND NOT REWRITE
-
-The design this replaces — rewriting the session file each turn — costs O(n^2) bytes written for a
-linear amount of content, because turn n writes everything written so far again. That is the memory
-hole. Measured on 2000 turns of realistic sizes in the standalone twin of this module
-(~/Projects/palace-journal):
-
-    final file on disk      1.49 MiB
-    per turn                782 bytes (input + output)
-    bytes the writer wrote  equal to the final size — nothing rewritten
-    rewrite-per-turn        1.46 GiB for the same session
-    difference              999x
-    a year at 3/day         1.6 GiB
-
-GROWTH IS LINEAR, NOT "51 RECORDS < 50x ONE RECORD"
-
-The test for this was written wrong the first time. Comparing 51 records against 50x a single record
-is false for a correct implementation, because the per-record header (~70 bytes) dominates a small
-body. The property that actually distinguishes linear from quadratic is that each block of records
-costs the same: a rewrite-per-turn design makes the second half of a session about three times the
-first. The test measures that ratio and requires it to be within 10% of 1.
-
-WHAT IT REFUSES TO DO
-
-- It never fails a turn. Every entry point returns () and swallows its own errors; a journal that
-  breaks a conversation is worse than no journal. The Hermes hooks do the same and are verified to
-  exit 0 on malformed JSON, empty stdin, a non-object payload, an empty body, and a missing binary.
-- It does not fsync. Flush only. fsync per turn is a measurable stall for a safety net.
-- It does not curate. This is a journal: verbatim, dumb, cheap. Promoting entries into palace drawers
-  is a separate pass and must not live in the hot path.
-- It does not escape the journal directory: the session id is sanitised, and a test asserts that
-  "../../etc/passwd" as a session id still lands inside the journal dir.
-
-THE PAIR IS THE POINT
-
-An input alone says a question was asked. Input plus output says what was answered, and lets the same
-question asked months apart be compared after a model changes underneath. Outputs carry the model id
-and the turn duration that the engine already computed, so the number in the journal is the same
-number the UI shows rather than a second clock that could disagree.
-
----
---- /dev/null
-+++ b/crates/quixi-engine/src/journal.rs
+diff -Naur a/crates/quixi-engine/src/journal.rs b/crates/quixi-engine/src/journal.rs
+--- a/crates/quixi-engine/src/journal.rs	1969-12-31 16:00:00.000000000 -0800
++++ b/crates/quixi-engine/src/journal.rs	2026-11-02 14:32:55.734240009 -0800
 @@ -0,0 +1,290 @@
 +//! Append-only session journal: one file per session, updated in place.
 +//!
@@ -339,8 +292,9 @@ number the UI shows rather than a second clock that could disagree.
 +        assert!(p.starts_with(&d), "path must stay inside the journal dir: {p:?}");
 +    }
 +}
---- a/crates/quixi-engine/src/lib.rs
-+++ b/crates/quixi-engine/src/lib.rs
+diff -Naur a/crates/quixi-engine/src/lib.rs b/crates/quixi-engine/src/lib.rs
+--- a/crates/quixi-engine/src/lib.rs	2026-11-02 14:36:49.947171919 -0800
++++ b/crates/quixi-engine/src/lib.rs	2026-11-02 14:35:57.692612707 -0800
 @@ -4,6 +4,7 @@
  mod scheduling;
  mod context;
@@ -379,3 +333,53 @@ number the UI shows rather than a second clock that could disagree.
              }
              eng.clear_partial_reply(&sid,&cancelled);
  
+diff -Naur a/crates/quixi-engine/src/providers.rs b/crates/quixi-engine/src/providers.rs
+--- a/crates/quixi-engine/src/providers.rs	2026-10-31 11:49:06.000000000 -0700
++++ b/crates/quixi-engine/src/providers.rs	2026-11-02 14:34:13.018528902 -0800
+@@ -735,7 +735,45 @@
+                 last_tested_ok: None,
+                 last_latency_ms: None,
+             },
+-            // 17. LM Studio (Local)
++            // 17. Ollama Cloud — the same service as Ollama (Local), reached over the internet with
++            // an account key. Its own row rather than a Custom Endpoint the user has to fill in:
++            // the base URL, the env var and the model list are all known, so asking someone to type
++            // them is asking them to make a mistake for no reason.
++            ProviderEntry {
++                id: "ollama-cloud".to_string(),
++                name: "Ollama Cloud".to_string(),
++                subtitle: "Ollama's hosted models — same API as local Ollama, no GPU required".to_string(),
++                badge: "Cloud · key required".to_string(),
++                category: "cloud".to_string(),
++                priority_rank: 17,
++                supports_oauth: false,
++                oauth_label: None,
++                auth_mode: "api_key".to_string(),
++                api_format: "openai".to_string(),
++                base_url: "https://ollama.com/v1".to_string(),
++                api_key_masked: String::new(),
++                api_key_raw: String::new(),
++                oauth_access_token: String::new(),
++                oauth_refresh_token: String::new(),
++                oauth_account_label: None,
++                oauth_expires_ms: None,
++                key_placeholder: "Paste your Ollama API key".to_string(),
++                env_var: "OLLAMA_API_KEY".to_string(),
++                docs_url: "https://ollama.com/settings/keys".to_string(),
++                configured: false,
++                selected_model: "deepseek-v4.1-flash".to_string(),
++                models: vec![
++                    Self::model("deepseek-v4.1-flash", "DeepSeek V4.1 Flash", 1_000_000, true, false),
++                    Self::model("qwen3.5-coder:480b", "Qwen 3.5 Coder 480B", 262_144, true, false),
++                    Self::model("kimi-k2:latest", "Kimi K2", 262_144, true, false),
++                    Self::model("gpt-oss:120b", "GPT-OSS 120B", 131_072, true, false),
++                ],
++                custom_models: vec![],
++                context_window: 1_000_000,
++                last_tested_ok: None,
++                last_latency_ms: None,
++            },
++            // 18. LM Studio (Local)
+             ProviderEntry {
+                 id: "lmstudio".to_string(),
+                 name: "LM Studio (Local)".to_string(),
