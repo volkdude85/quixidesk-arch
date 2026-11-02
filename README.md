@@ -67,6 +67,14 @@ Backend selection is tested by building a `PATH` containing exactly the tools ea
 ships and asserting the right backend runs. If a backend fails, the next one is tried and
 the final error lists what each one said.
 
+## Documentation
+
+- [`STEAMDECK.md`](STEAMDECK.md) — running this on a Steam Deck: SteamOS has a read-only root and an
+  A/B image scheme, so an `pacman -U` lands in the image and is erased by the next OS update. The
+  container route is the correct install, and `scripts/steamdeck-distrobox.sh` does it.
+- [`FEATURES.md`](FEATURES.md) — the capability table, with what stock does and what this changes.
+- [`WAIVER.md`](WAIVER.md) — the limits that were raised, stated plainly.
+
 ## Build
 
 ```sh
