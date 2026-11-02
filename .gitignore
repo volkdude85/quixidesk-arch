@@ -1,0 +1,11 @@
+src/
+pkg/
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.tar.gz
+*.log
+
+# local backups and rejects
+*.bak-*
+*.orig
+*.rej

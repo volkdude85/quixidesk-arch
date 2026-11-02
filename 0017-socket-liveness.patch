@@ -1,0 +1,72 @@
+A socket file is not a running daemon
+===================================
+
+The arch series failed its own suite:
+
+    test tests::cursor_position_is_not_claimed_until_known ... FAILED
+    panicked at crates/quixi-platform/src/lib.rs:2203
+
+The test is right. It asks the capability report whether input synthesis is available, and if so,
+performs a move and asserts the position is now known. On this box `input_synthesis` came back `true`
+while every synthesized event failed, which is precisely the contradiction the test was written to
+catch.
+
+The cause is `ydotool_socket()`: it probed candidates with `Path::exists()`, and a unix socket leaves
+its inode behind when the process behind it dies. So "a socket file is here" was being read as
+"something will answer", the capability report said input was available, and the move went into a
+dead socket.
+
+`exists()` is now a connect. A local unix connect either completes or is refused immediately, so it
+costs nothing and it cannot claim a live daemon that is not there. Same treatment for the
+`YDOTOOL_SOCKET` override, which had the identical flaw.
+diff -Naur -x target /tmp/archbefore/crates/quixi-platform/src/linux.rs /tmp/archpatched/crates/quixi-platform/src/linux.rs
+--- a/crates/quixi-platform/src/linux.rs
++++ b/crates/quixi-platform/src/linux.rs
+@@ -1514,17 +1514,33 @@
+ /// the code never set `YDOTOOL_SOCKET` the client looked in the wrong place and everything
+ /// failed while the daemon sat there running. Honour the environment first, then look in the
+ /// places a daemon actually binds.
++/// Is there actually a daemon listening on this path?
++///
++/// A unix socket leaves its inode behind when the process dies, so `exists()` answers "a socket file
++/// is here", not "something will accept a connection". Those are different claims, and confusing them
++/// is how the capability report ended up advertising input synthesis on a box where every synthesized
++/// event failed: the test that caught it moves the pointer, asks whether the position is now known,
++/// and gets "yes it should be" from the capability probe and "no" from reality.
++///
++/// Connect, then drop. Cheap enough to do per probe, and it cannot lie about a live daemon.
++fn socket_is_live(path: &std::path::Path) -> bool {
++    // `UnixStream` has no connect_timeout, and does not need one: a local unix connect either
++    // completes or is refused immediately, with no network round trip to wait on.
++    use std::os::unix::net::UnixStream;
++    UnixStream::connect(path).is_ok()
++}
++
+ fn ydotool_socket() -> Option<std::path::PathBuf> {
+-    // Only honour YDOTOOL_SOCKET when the socket is actually there.
++    // Only honour YDOTOOL_SOCKET when a daemon is actually answering there.
+     //
+     // Trusting it blindly is how input dies silently: a launcher, a systemd unit or a test harness
+-    // exports a path it believes is right, the path does not exist, and every call fails with an
+-    // empty error because the message only says "failed". Measured on a box whose ydotoold is the
+-    // distro service on /run/ydotoold.socket while the caller had exported
++    // exports a path it believes is right, nothing is listening, and every call fails with an empty
++    // error because the message only says "failed". Measured on a box whose ydotoold is the distro
++    // service on /run/ydotoold.socket while the caller had exported
+     // $XDG_RUNTIME_DIR/.ydotool_socket. Fall through to the probe instead.
+     if let Some(p) = std::env::var_os("YDOTOOL_SOCKET") {
+         let path = std::path::PathBuf::from(&p);
+-        if !p.is_empty() && path.exists() {
++        if !p.is_empty() && socket_is_live(&path) {
+             return Some(path);
+         }
+     }
+@@ -1534,7 +1550,7 @@
+     }
+     candidates.push(std::path::PathBuf::from("/tmp/.ydotool_socket"));
+     candidates.push(std::path::PathBuf::from("/run/ydotoold.socket"));
+-    candidates.into_iter().find(|p| p.exists())
++    candidates.into_iter().find(|p| socket_is_live(p))
+ }
+ 
+ /// Is the daemon reachable? The binary existing proves nothing — ydotoold is the privileged

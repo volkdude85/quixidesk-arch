@@ -1,0 +1,122 @@
+Which build is this? It says so before the name
+================================================
+
+Two packages from one source tree, and once both are installed nothing on screen said
+which one you were looking at. The name now carries a label in front of it — parentheses,
+bold — in the three places a person actually looks: window title, sidebar brand, and the
+tab title.
+
+It is not hardcoded, because the label is the difference between the builds. It is read
+from `QUIXI_EDITION_LABEL` when the package compiles:
+
+    stock / core   (unset — the title is "QuixiDesk", byte for byte as upstream)
+    personal       export QUIXI_EDITION_LABEL="(PERSONAL — volkdude85) "
+
+so one patch serves every edition, and a build that sets nothing is unchanged. The shell
+is static HTML served from disk, so the value is injected when the page is served instead
+of being baked into each build's copy of the file.
+
+Measured: a compile with the variable unset prints "QuixiDesk" and injects an empty
+label; the same source compiled with it set prints "(PERSONAL — volkdude85) QuixiDesk".
+
+--- a/crates/quixi-app/src/main.rs
++++ b/crates/quixi-app/src/main.rs
+@@ -702,7 +702,17 @@
+     // 5. SPA fallback -> ui/index.html for all client routes (/new, /chat/*, /cowork*, /code*, /settings*, etc.)
+     let index_html = ui_dir.join("index.html");
+     match fs::read(&index_html) {
+-        Ok(bytes) => build_http_response(200, "text/html; charset=utf-8", bytes),
++        Ok(bytes) => {
++            // Tell the shell which build it is, so the brand line can carry the same label
++            // as the title bar. Injected at serve time because the HTML on disk is identical
++            // in every build — the label is the one thing that is not in the file.
++            let bootstrap = format!(
++                "<script>window.__QUIXI_EDITION__={label:?};</script>\n</head>",
++                label = EDITION_LABEL,
++            );
++            let html = String::from_utf8_lossy(&bytes).replacen("</head>", &bootstrap, 1);
++            build_http_response(200, "text/html; charset=utf-8", html.into_bytes())
++        }
+         Err(err) => build_http_response(
+             500,
+             "text/plain; charset=utf-8",
+@@ -711,6 +721,14 @@
+     }
+ }
+ 
++/// Which build this is. The packaging sets QUIXI_EDITION_LABEL when it compiles, so a
++/// single source tree produces every edition: a build that identifies itself says so in
++/// the title bar, and a stock build keeps upstream's name with no prefix at all.
++const EDITION_LABEL: &str = match option_env!("QUIXI_EDITION_LABEL") {
++    Some(label) => label,
++    None => "",
++};
++
+ fn main() -> anyhow::Result<()> {
+     if std::env::args().nth(1).as_deref() == Some("--mcp-transport-worker") {
+         return quixi_mcp::transport_worker_main();
+@@ -808,8 +826,13 @@
+     }));
+ 
+     // Build the native workspace window and titlebar inset.
++    let window_title = if test_profile.is_some() {
++        format!("{EDITION_LABEL}QuixiDesk — Test Profile")
++    } else {
++        format!("{EDITION_LABEL}QuixiDesk")
++    };
+     let mut win_builder = WindowBuilder::new()
+-        .with_title(if test_profile.is_some() { "QuixiDesk — Test Profile" } else { "QuixiDesk" })
++        .with_title(window_title)
+         .with_inner_size(LogicalSize::new(1280.0, 840.0))
+         .with_min_inner_size(LogicalSize::new(480.0, 360.0));
+ 
+--- a/resources/ui/app.js
++++ b/resources/ui/app.js
+@@ -96,6 +96,10 @@
+         );
+     return n;
+   }
++
++  // Which build this is. The app sets it on the page before the shell loads; a stock
++  // build never sets it, so this is "" and the label below disappears.
++  const EDITION = window.__QUIXI_EDITION__ || "";
+   function button(label, fn, cls = "", name) {
+     return el(
+       "button",
+@@ -415,10 +419,12 @@
+       control.title = label;
+       return control;
+     };
++    // The shell is served by the app, which sets this before any script runs. A stock
++    // build leaves it empty, so the name reads exactly as upstream's.
+     document.title =
+       state.page === "chat"
+-        ? (session()?.title || "Task") + " · QuixiDesk"
+-        : "QuixiDesk";
++        ? (session()?.title || "Task") + " · " + EDITION + "QuixiDesk"
++        : EDITION + "QuixiDesk";
+     const nav = [
+       ["search", "Search", "search"],
+       ["projects", "Projects", "projects"],
+@@ -436,6 +442,7 @@
+         el(
+           "span",
+           {},
++          EDITION ? el("strong", { class: "edition-label" }, EDITION) : null,
+           "QuixiDesk",
+           el("span", { class: "brand-caption" }, "Personal workspace"),
+         ),
+--- a/resources/ui/app.css
++++ b/resources/ui/app.css
+@@ -2176,3 +2176,11 @@
+ .pending-message-label { font-size: 11px; color: var(--muted); }
+ .pending-message-text { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .pending-message button { flex-shrink: 0; font-size: 12px; }
++
++/* The edition label: bold and muted, in front of the product name, so a glance at the
++   sidebar answers "which build is this" without opening anything. */
++.brand .edition-label {
++  font-weight: 700;
++  opacity: 0.72;
++  margin-right: 0.35em;
++}

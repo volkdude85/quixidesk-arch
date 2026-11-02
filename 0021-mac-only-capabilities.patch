@@ -1,0 +1,56 @@
+No macOS tooling, and no skills that are useless here
+====================================================
+
+Two halves of the same complaint: the Tools & skills page listed things that cannot work on this
+machine and things that nobody on Linux wants.
+
+  * the `applescript` MCP server is no longer seeded, and the loop that re-added anything missing no
+    longer pushes it back — it was removed by hand and returned on the next launch. Gated on
+    `cfg!(target_os = "macos")`, because on Linux every call to it fails, which reads as a broken
+    feature rather than an absent one
+  * the bundled skill set is pruned to `browser-driving`. Dropped: docx, pdf, pdf-reading, pptx, xlsx,
+    frontend-design — office-document skills for a Linux desktop, where the answer is a shell and an
+    editor. They can be re-added per machine; they should not be the default face of the page
+
+Nothing is deleted from the codebase: `applescript_tools()` still exists for the macOS build, and the
+skills remain in the upstream repository the bundle was cut from.
+
+--- a/crates/quixi-mcp/src/lib.rs
++++ b/crates/quixi-mcp/src/lib.rs
+@@ -193,10 +193,7 @@
+                     "command": "quixi-mcp-builtin",
+                     "args": ["--in-app-browser"]
+                 },
+-                "applescript": {
+-                    "command": "quixi-mcp-builtin",
+-                    "args": ["--applescript"]
+-                },
++
+                 "memory": {
+                     "command": "quixi-mcp-builtin",
+                     "args": ["--memory"]
+@@ -254,15 +251,21 @@
+                     parsed.mcp_servers.remove(&old);
+                     changed = true;
+                 }
+-                for (name, arg) in [
++                let mut defaults: Vec<(&str, &str)> = vec![
+                     ("quixi-workspace", "--workspace"),
+                     ("computer-use", "--computer-use"),
+                     ("quixi-in-chrome", "--browser-use"),
+                     ("QuixiDesk Browser", "--in-app-browser"),
+-                    ("applescript", "--applescript"),
+                     ("memory", "--memory"),
+                     ("fetch", "--fetch"),
+-                ] {
++                ];
++                // AppleScript is a macOS capability. Seeded on Linux it listed a server whose every
++                // call fails, reading as a broken feature rather than an absent one — and this loop
++                // put it back after it had been removed by hand.
++                if cfg!(target_os = "macos") {
++                    defaults.push(("applescript", "--applescript"));
++                }
++                for (name, arg) in defaults {
+                     if !parsed.mcp_servers.contains_key(name) {
+                         parsed.mcp_servers.insert(
+                             name.to_string(),

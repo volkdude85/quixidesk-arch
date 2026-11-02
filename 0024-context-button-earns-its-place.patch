@@ -1,0 +1,71 @@
+--- a/resources/ui/app.js
++++ b/resources/ui/app.js
+@@ -52,6 +52,9 @@
+     code: "M8 6l-6 6 6 6M16 6l6 6-6 6",
+     refresh: "M20 8a9 9 0 1 0 1 7M20 3v6h-6",
+     spark: "M12 3v18M3 12h18M6 6l12 12M18 6L6 18",
++    // Something attached from outside, rather than a pencil struck through — which is what this
++    // button used to wear, and it read as "disabled" on a control that adds context.
++    link: "M10 13.5a4.5 4.5 0 006.4 0l3.1-3.1a4.5 4.5 0 00-6.4-6.4l-1.4 1.4M14 10.5a4.5 4.5 0 00-6.4 0l-3.1 3.1a4.5 4.5 0 006.4 6.4l1.4-1.4",
+   };
+   function icon(name, size = 18) {
+     const node = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+@@ -821,6 +824,39 @@
+     renderChips();
+     if (s) renderTranscript();
+   }
++  // How many MCP servers can actually serve context.
++  //
++  // The picker behind this button browses `resources` and `prompts`, and it filters built-in
++  // adapters out entirely (`list.filter(s => !s.builtin)`). That is correct — the built-ins expose
++  // neither method; measured against all six on this box, `resources/list` and `prompts/list` come
++  // back -32601 "Method not found". Which meant the button opened a dialog whose only possible
++  // content was "Configure an MCP server in Tools & skills to add external context": a live control
++  // with nothing behind it, sitting in the composer next to controls that work.
++  //
++  // It appears when it has somewhere to browse, and stays out of the row until then. -1 is
++  // "unknown, ask the backend"; anything else is a cached count, cleared when the server list is
++  // edited.
++  let mcpContextServers = -1;
++  function mcpContextServerCount() {
++    if (mcpContextServers >= 0) return Promise.resolve(mcpContextServers);
++    return rpc("LocalAgentModeSessions", "getLocalMcpServers")
++      .then((list) => {
++        mcpContextServers = Array.isArray(list) ? list.filter((s) => !s.builtin).length : 0;
++        return mcpContextServers;
++      })
++      .catch(() => {
++        mcpContextServers = 0;
++        return 0;
++      });
++  }
++  function mcpContextButton() {
++    const node = ib("Add MCP context", "link", () => mcpContextPicker());
++    node.style.display = "none";
++    mcpContextServerCount().then((n) => {
++      if (n > 0) node.style.display = "";
++    });
++    return node;
++  }
+   function composer() {
+     const s = session();
+     // Navigation belongs to this composer, never another conversation's draft.
+@@ -958,7 +994,7 @@
+           { class: "composer-tools" },
+           ib("Attach images or text files", "plus", () => fileInput.click()),
+           capabilityUI.dictationControl(ta),
+-          ib("Add MCP context", "tools", () => mcpContextPicker()),
++          mcpContextButton(),
+           button(
+             [
+               icon("folder", 14),
+@@ -2671,6 +2707,9 @@
+         if (result?.error) throw new Error(typeof result.error === "string" ? result.error : result.error.message);
+         if (result?.ok !== true) throw new Error("MCP configuration could not be saved.");
+         await loadTools();
++        // The server list just changed, so the composer's context button has to re-decide whether
++        // it belongs in the row.
++        mcpContextServers = -1;
+       },
+       { wide: true },
+     );
