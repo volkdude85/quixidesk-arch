@@ -341,15 +341,15 @@ number the UI shows rather than a second clock that could disagree.
 +}
 --- a/crates/quixi-engine/src/lib.rs
 +++ b/crates/quixi-engine/src/lib.rs
-@@ -5,6 +5,7 @@
+@@ -4,6 +4,7 @@
+ mod scheduling;
  mod context;
  mod credentials;
- pub mod palace;
 +pub mod journal;
  pub mod voice;
  mod tool_media;
  pub mod agent_tools;
-@@ -3298,6 +3299,9 @@
+@@ -2905,6 +2906,9 @@
      }
  
      fn send_agent_message_content(self: &Arc<Self>, session_id: &str, prompt: &str, provided_uuid: Option<&str>, content: Vec<Value>) {
@@ -359,7 +359,7 @@ number the UI shows rather than a second clock that could disagree.
          let user_msg_uuid = provided_uuid
              .filter(|s| !s.trim().is_empty())
              .map(|s| s.to_string())
-@@ -3658,7 +3662,19 @@
+@@ -3265,7 +3269,19 @@
                  sess.last_activity_at = Utc::now().timestamp_millis() as u64;
                  sess.buffered_messages.push(assistant_msg.clone());
                  sess.buffered_messages.push(result_msg.clone());
