@@ -13,10 +13,10 @@ not be able to lose it.
 Styled from theme variables throughout, so a Core build keeps its own palette; the only fixed colour is
 the green that means "running".
 
-diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.rej' ebase/QuixiDesk-3.6556.12/crates/quixi-engine/src/lib.rs ecore/QuixiDesk-3.6556.12/crates/quixi-engine/src/lib.rs
---- a/crates/quixi-engine/src/lib.rs	2026-11-03 00:06:12.387716413 -0800
-+++ b/crates/quixi-engine/src/lib.rs	2026-11-03 00:03:47.140313104 -0800
-@@ -1371,6 +1371,106 @@
+diff -ruN -x .git crates/quixi-engine/src/lib.rs crates/quixi-engine/src/lib.rs
+--- a/crates/quixi-engine/src/lib.rs	2026-11-03 01:13:55.852088238 -0800
++++ b/crates/quixi-engine/src/lib.rs	2026-11-03 01:13:51.702282681 -0800
+@@ -1371,6 +1371,125 @@
              };
          }
  
@@ -38,15 +38,34 @@ diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.re
 +                .is_ok()
 +            };
 +            let mut list: Vec<Value> = Vec::new();
-+            for (name, unit, port, what) in [
-+                ("Streaming speech", "nora-talk.service", Some(8791u16), "dictation and transcription"),
-+                ("Kokoro voice", "kokoro.service", Some(8765u16), "read aloud"),
-+                ("Embedding index", "embeddinggemma.service", Some(42666u16), "memory recall"),
-+                ("Model server", "llama-swap.service", Some(8086u16), "local models"),
-+                ("Vision", "qwen3vl.service", Some(8100u16), "looking at images"),
-+                ("Input injection", "ydotoold", None, "the agent driving mouse and keyboard"),
-+            ] {
-+                let state = if unit.is_empty() { "n/a".to_string() } else { unit_state(unit) };
++            // The list is the machine's, not the program's: it comes from <data_dir>/daemons.json —
++            //   [{"name":"Speech to text","unit":"stt.service","port":8080,"what":"dictation"}]
++            // With no file, the one row shown is ydotool's daemon, because that is the only service
++            // this app can name without guessing at somebody else's unit names and ports.
++            let mut configured: Vec<(String, String, Option<u16>, String)> = Vec::new();
++            if let Ok(text) = std::fs::read_to_string(self.data_dir.join("daemons.json")) {
++                if let Ok(rows) = serde_json::from_str::<Vec<Value>>(&text) {
++                    for row in rows {
++                        let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
++                        let unit = row.get("unit").and_then(|v| v.as_str()).unwrap_or("").to_string();
++                        let what = row.get("what").and_then(|v| v.as_str()).unwrap_or("").to_string();
++                        let port = row.get("port").and_then(|v| v.as_u64()).map(|p| p as u16);
++                        if !name.is_empty() {
++                            configured.push((name, unit, port, what));
++                        }
++                    }
++                }
++            }
++            if configured.is_empty() {
++                configured.push((
++                    "Input injection".to_string(),
++                    "ydotoold".to_string(),
++                    None,
++                    "the agent driving mouse and keyboard".to_string(),
++                ));
++            }
++            for (name, unit, port, what) in configured {
++                let state = if unit.is_empty() { "n/a".to_string() } else { unit_state(&unit) };
 +                let listening = port.map(port_open);
 +                let up = match listening {
 +                    Some(open) => open,
@@ -123,9 +142,9 @@ diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.re
          if clean_path == "/api/quixi/storage/status" {
              return Self::json_resp(200, &self.session_storage_status());
          }
-diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.rej' ebase/QuixiDesk-3.6556.12/resources/ui/app.css ecore/QuixiDesk-3.6556.12/resources/ui/app.css
---- a/resources/ui/app.css	2026-11-03 00:06:12.385924956 -0800
-+++ b/resources/ui/app.css	2026-11-03 00:03:47.139773681 -0800
+diff -ruN -x .git resources/ui/app.css resources/ui/app.css
+--- a/resources/ui/app.css	2026-11-03 01:13:55.848964138 -0800
++++ b/resources/ui/app.css	2026-11-03 01:13:47.538490216 -0800
 @@ -2184,3 +2184,61 @@
    opacity: 0.72;
    margin-right: 0.35em;
@@ -188,9 +207,9 @@ diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.re
 +  font: inherit; font-size: 12px; padding: 5px 8px; border-radius: 6px; cursor: pointer;
 +}
 +.nav-child:hover, .nav-child:focus-visible { color: var(--text); background: var(--raised); outline: none; }
-diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.rej' ebase/QuixiDesk-3.6556.12/resources/ui/app.js ecore/QuixiDesk-3.6556.12/resources/ui/app.js
---- a/resources/ui/app.js	2026-11-03 00:06:12.385754289 -0800
-+++ b/resources/ui/app.js	2026-11-03 00:07:43.682270681 -0800
+diff -ruN -x .git resources/ui/app.js resources/ui/app.js
+--- a/resources/ui/app.js	2026-11-03 01:13:55.848665599 -0800
++++ b/resources/ui/app.js	2026-11-03 01:13:51.702553707 -0800
 @@ -36,6 +36,7 @@
      projects: "M3 6h7l2 3h9v11H3zM3 6V4h7l2 2",
      artifacts: "M4 3h12l4 4v14H4zM8 12h8M8 16h5",
@@ -378,7 +397,7 @@ diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.re
 +                button("Remove", () => act(d, "remove"), "quiet danger"))
 +            : null)),
 +      el("p", { class: "muted small daemon-note" },
-+        "To create a daemon, open a new instance and ask — this page shows what is running, it does not write units."),
++        "Which services appear here comes from daemons.json in the app's data directory — a list of name, unit and port. This page shows what is running; it does not write units."),
 +    );
 +  }
    function schedulesPage(host) {

@@ -1,0 +1,25 @@
+The automation bridge reads the page back
+========================================
+
+`{"action":"text"}` returns the rendered text of the page host, capped, so a test can assert what
+actually rendered rather than what it asked for. Reading the DOM is the difference between "the click was
+delivered" and "the click did the thing", and every check written against this bridge has wanted the
+second one.
+
+diff -ruN -x .git resources/ui/app.js resources/ui/app.js
+--- a/resources/ui/app.js	2026-11-03 01:13:51.702553707 -0800
++++ b/resources/ui/app.js	2026-11-03 01:11:52.549152814 -0800
+@@ -705,6 +705,13 @@
+           navigate(String(payload.page || ""));
+           return JSON.stringify({ ok: true, page: payload.page });
+         }
++        // Reading the page back, so a test can assert what rendered rather than what was asked for.
++        if (action === "text") {
++          const root = automationRoot();
++          const host = root.querySelector("#page-host") || root;
++          const text = String(host.innerText || "").replace(/\n{3,}/g, "\n\n").slice(0, 4000);
++          return JSON.stringify({ ok: true, page: state.page, text });
++        }
+         return JSON.stringify({ ok: false, error: "unknown action", action });
+       } catch (error) {
+         return JSON.stringify({ ok: false, error: String(error) });
