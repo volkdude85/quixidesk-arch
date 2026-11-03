@@ -81,37 +81,39 @@ optdepends=(
 provides=('quixidesk')
 conflicts=('quixidesk-bin' 'quixidesk-git')
 source=(
-  "0027-journal-and-ollama-cloud.patch"
-  "0026-edition-label.patch"
-  "0028-no-apple-shaped-capabilities-on-linux.patch"
+  "patches/000-099/020-029/0027-journal-and-ollama-cloud.patch"
+  "patches/000-099/020-029/0026-edition-label.patch"
+  "patches/000-099/020-029/0028-no-apple-shaped-capabilities-on-linux.patch"
   "${pkgname}-${pkgver}.tar.gz::https://github.com/QuixiAI/QuixiDesk/archive/refs/tags/v${pkgver}.tar.gz"
   "ydotoold.openrc"
   "DESIGN-NOTES-linux.md"
-  "0001-linux-support.patch"
-  "0002-voice.patch"
-  "0003-condense-fallback.patch"
-  "0004-skills.patch"
-  "0005-headless.patch"
-  "0009-linux-fixes-keybindings.patch"
-  "0010-rustify-keybindings.patch"
-  "0011-test-portability.patch"
-  "0012-kde-scenario-pinning.patch"
-  "0013-artix-love.patch"
-  "0014-hyprland-omarchy.patch"
-  "0015-browser-driving-skill.patch"
-  "0016-test-portability-containers.patch"
-  "0017-socket-liveness.patch"
-  "0018-cli-usage.patch"
-  "0019-voice-over-ipc.patch"
-  "0020-dictation-referenceerror.patch"
-  "0021-mac-only-capabilities.patch"
-  "0022-automation-bridge.patch"
-  "0023-mcp-platform-adapters.patch"
-  "0024-context-button-earns-its-place.patch"
-  "0025-with-skill.patch"
+  "patches/000-099/000-009/0001-linux-support.patch"
+  "patches/000-099/000-009/0002-voice.patch"
+  "patches/000-099/000-009/0003-condense-fallback.patch"
+  "patches/000-099/000-009/0004-skills.patch"
+  "patches/000-099/000-009/0005-headless.patch"
+  "patches/000-099/000-009/0009-linux-fixes-keybindings.patch"
+  "patches/000-099/010-019/0010-rustify-keybindings.patch"
+  "patches/000-099/010-019/0011-test-portability.patch"
+  "patches/000-099/010-019/0012-kde-scenario-pinning.patch"
+  "patches/000-099/010-019/0013-artix-love.patch"
+  "patches/000-099/010-019/0014-hyprland-omarchy.patch"
+  "patches/000-099/010-019/0015-browser-driving-skill.patch"
+  "patches/000-099/010-019/0016-test-portability-containers.patch"
+  "patches/000-099/010-019/0017-socket-liveness.patch"
+  "patches/000-099/010-019/0018-cli-usage.patch"
+  "patches/000-099/010-019/0019-voice-over-ipc.patch"
+  "patches/000-099/020-029/0020-dictation-referenceerror.patch"
+  "patches/000-099/020-029/0021-mac-only-capabilities.patch"
+  "patches/000-099/020-029/0022-automation-bridge.patch"
+  "patches/000-099/020-029/0023-mcp-platform-adapters.patch"
+  "patches/000-099/020-029/0024-context-button-earns-its-place.patch"
+  "patches/000-099/020-029/0025-with-skill.patch"
 )
-sha256sums=('bd4a041fc9b87647c0ba2eb59f204f8086a33f3f5006c8c4c1ccb11b19a62bac'
+sha256sums=(
+            'bd4a041fc9b87647c0ba2eb59f204f8086a33f3f5006c8c4c1ccb11b19a62bac'
             'f090805ad11ddd9a757f3f7f54eb13c32f013feb357571a658ea3fda492d4d94'
+            '28909ae23efa41461f476d6ae31ce98b211b192ce394c1ea6e1fb0fd9060bdce'
             '0d447af0ebe5a9aa447e45cffe183c077647637994eb71ec22a29a179742484e'
             '7f0469f375334b97b3c046d0384bfd68a6f9157871c8b881f3f822ee1916e57c'
             '285268b1aacedd95c4b47619dfc20a8f229ef8ba31e5c31328d479be63a336f8'
@@ -137,7 +139,7 @@ sha256sums=('bd4a041fc9b87647c0ba2eb59f204f8086a33f3f5006c8c4c1ccb11b19a62bac'
             '8f86f78d6b432ae6d7b5f29722b6d890403ec7a459a9551774574a2e47400261'
             'fdec7973c11cf751413aee8ba157cd9a7b8684c111e1baa974e3b91e2ed079d0'
             'cef94bf03388b234d141b70a935129f2fea71ebe8b017c4690e04e714ce10dc8'
-            '28909ae23efa41461f476d6ae31ce98b211b192ce394c1ea6e1fb0fd9060bdce')
+)
 
 _libdir="/usr/lib/${pkgname}"
 
