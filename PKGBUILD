@@ -85,6 +85,7 @@ source=(
   "0026-edition-label.patch"
   "0028-no-apple-shaped-capabilities-on-linux.patch"
   "0029-daemons-on-their-own-page.patch"
+  "0030-the-daemon-list-belongs-to-the-machine.patch"
   "${pkgname}-${pkgver}.tar.gz::https://github.com/QuixiAI/QuixiDesk/archive/refs/tags/v${pkgver}.tar.gz"
   "ydotoold.openrc"
   "DESIGN-NOTES-linux.md"
@@ -116,6 +117,7 @@ sha256sums=(
   'f090805ad11ddd9a757f3f7f54eb13c32f013feb357571a658ea3fda492d4d94'
   '28909ae23efa41461f476d6ae31ce98b211b192ce394c1ea6e1fb0fd9060bdce'
   'fb7ee9fdd388646a4145f006bf81071bb5830d814f8edc917eeb89a4aca01fdf'
+  '3fe5eaec39a8fce5bc178d817c3a256adb44c4f4e7399d5bd241a5d640e5240d'
   '0d447af0ebe5a9aa447e45cffe183c077647637994eb71ec22a29a179742484e'
   '7f0469f375334b97b3c046d0384bfd68a6f9157871c8b881f3f822ee1916e57c'
   '285268b1aacedd95c4b47619dfc20a8f229ef8ba31e5c31328d479be63a336f8'
@@ -272,6 +274,9 @@ prepare() {
 
   # Daemons: what is running on this machine, on its own page, with start, stop and remove.
   patch -Np1 -i "${srcdir}/0029-daemons-on-their-own-page.patch"
+
+  # The daemon list belongs to the machine: it comes from <data_dir>/daemons.json.
+  patch -Np1 -i "${srcdir}/0030-the-daemon-list-belongs-to-the-machine.patch"
 
   # Fetch AFTER the patches so the fetched set matches what the build will use.
   cargo fetch --locked --target x86_64-unknown-linux-gnu

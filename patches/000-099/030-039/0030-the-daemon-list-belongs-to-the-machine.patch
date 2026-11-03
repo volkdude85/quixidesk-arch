@@ -1,0 +1,95 @@
+The daemon list belongs to the machine
+=====================================
+
+The page shipped with one particular computer's services written into the binary — a speech-to-text unit,
+a voice unit, an embedding index, a model server and a vision unit, each on the port that machine used,
+one of them carrying that machine's assistant by name. Whoever built this package saw their own setup; a
+stranger saw a list of services they do not have, on ports that mean nothing to them.
+
+It reads `<data_dir>/daemons.json` now:
+
+```json
+[{"name":"Speech to text","unit":"stt.service","port":8080,"what":"dictation and transcription"}]
+```
+
+With no file, the single row is `ydotoold` — the one service this app can name without guessing, because
+input synthesis does not work without it — and the page says where the list comes from, so an empty page
+is an instruction rather than a mystery.
+
+Also here: Daemons is a plain nav entry rather than an expandable group, and the automation bridge can
+read the rendered page back (`{"action":"text"}`) so a test can assert what rendered instead of what it
+asked for.
+
+diff -ruN -x .git crates/quixi-engine/src/lib.rs crates/quixi-engine/src/lib.rs
+--- a/crates/quixi-engine/src/lib.rs	2026-11-03 01:11:46.063032071 -0800
++++ b/crates/quixi-engine/src/lib.rs	2026-11-03 01:11:52.548791626 -0800
+@@ -1389,15 +1389,34 @@
+                 .is_ok()
+             };
+             let mut list: Vec<Value> = Vec::new();
+-            for (name, unit, port, what) in [
+-                ("Streaming speech", "nora-talk.service", Some(8791u16), "dictation and transcription"),
+-                ("Kokoro voice", "kokoro.service", Some(8765u16), "read aloud"),
+-                ("Embedding index", "embeddinggemma.service", Some(42666u16), "memory recall"),
+-                ("Model server", "llama-swap.service", Some(8086u16), "local models"),
+-                ("Vision", "qwen3vl.service", Some(8100u16), "looking at images"),
+-                ("Input injection", "ydotoold", None, "the agent driving mouse and keyboard"),
+-            ] {
+-                let state = if unit.is_empty() { "n/a".to_string() } else { unit_state(unit) };
++            // The list is the machine's, not the program's: it comes from <data_dir>/daemons.json —
++            //   [{"name":"Speech to text","unit":"stt.service","port":8080,"what":"dictation"}]
++            // With no file, the one row shown is ydotool's daemon, because that is the only service
++            // this app can name without guessing at somebody else's unit names and ports.
++            let mut configured: Vec<(String, String, Option<u16>, String)> = Vec::new();
++            if let Ok(text) = std::fs::read_to_string(self.data_dir.join("daemons.json")) {
++                if let Ok(rows) = serde_json::from_str::<Vec<Value>>(&text) {
++                    for row in rows {
++                        let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
++                        let unit = row.get("unit").and_then(|v| v.as_str()).unwrap_or("").to_string();
++                        let what = row.get("what").and_then(|v| v.as_str()).unwrap_or("").to_string();
++                        let port = row.get("port").and_then(|v| v.as_u64()).map(|p| p as u16);
++                        if !name.is_empty() {
++                            configured.push((name, unit, port, what));
++                        }
++                    }
++                }
++            }
++            if configured.is_empty() {
++                configured.push((
++                    "Input injection".to_string(),
++                    "ydotoold".to_string(),
++                    None,
++                    "the agent driving mouse and keyboard".to_string(),
++                ));
++            }
++            for (name, unit, port, what) in configured {
++                let state = if unit.is_empty() { "n/a".to_string() } else { unit_state(&unit) };
+                 let listening = port.map(port_open);
+                 let up = match listening {
+                     Some(open) => open,
+diff -ruN -x .git resources/ui/app.js resources/ui/app.js
+--- a/resources/ui/app.js	2026-11-03 01:11:46.063422244 -0800
++++ b/resources/ui/app.js	2026-11-03 01:11:52.549152814 -0800
+@@ -705,6 +705,13 @@
+           navigate(String(payload.page || ""));
+           return JSON.stringify({ ok: true, page: payload.page });
+         }
++        // Reading the page back, so a test can assert what rendered rather than what was asked for.
++        if (action === "text") {
++          const root = automationRoot();
++          const host = root.querySelector("#page-host") || root;
++          const text = String(host.innerText || "").replace(/\n{3,}/g, "\n\n").slice(0, 4000);
++          return JSON.stringify({ ok: true, page: state.page, text });
++        }
+         return JSON.stringify({ ok: false, error: "unknown action", action });
+       } catch (error) {
+         return JSON.stringify({ ok: false, error: String(error) });
+@@ -2250,7 +2257,7 @@
+                 button("Remove", () => act(d, "remove"), "quiet danger"))
+             : null)),
+       el("p", { class: "muted small daemon-note" },
+-        "To create a daemon, open a new instance and ask — this page shows what is running, it does not write units."),
++        "Which services appear here comes from daemons.json in the app's data directory — a list of name, unit and port. This page shows what is running; it does not write units."),
+     );
+   }
+   function schedulesPage(host) {
