@@ -97,3 +97,11 @@ against the distro's own webkit2gtk and GTK. Flatpak is the sanctioned route ont
 supported routes here are A and B. If a SteamOS update removes the app, that is expected behaviour for
 Route A, not a bug — and it is the trade this edition makes on purpose, rather than shipping a sandbox
 that cannot reach the things this app is for.
+
+### If you want a Flatpak
+
+Use the **volkdude85 edition** — that is where a Flatpak exists today, and where it is maintained.
+
+For one to exist for *this* edition it has to come from QuixiAI, the upstream author of QuixiDesk, who
+holds commit access here and can ship it in the form he wants rather than the form a packager guessed
+at. Until he adds it, the answer for Core is the PKGBUILD, or Route A/B on a Deck.

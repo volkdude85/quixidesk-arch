@@ -16,6 +16,10 @@ Eric Hartford's MIT-licensed, native Rust (tao/wry) AI desktop workspace — plu
 | Artix / OpenRC / dinit (non-systemd) | [`ARTIX.md`](ARTIX.md) |
 | Hyprland and Omarchy | [`HYPRLAND.md`](HYPRLAND.md) |
 
+**No Flatpak.** This edition is the PKGBUILD, built from source against your distro's own webkit2gtk and
+GTK. If you want a Flatpak, use the **volkdude85 edition**; a Flatpak for Core has to come from QuixiAI,
+the upstream author, and until he adds one this is the package.
+
 Upstream QuixiDesk is excellent on macOS and does nothing on Linux. This repository makes
 it work: screen capture, clipboard, synthetic input, file pickers, display listing, cursor
 position and application launching, all wired to real Linux backends.
