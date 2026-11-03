@@ -1,0 +1,41 @@
+name: flatpak
+
+# The Core edition's Flatpak: built on a tag, attached to the release, and available as a workflow
+# artifact so it can be installed by hand without a store review.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: quixicore.flatpak
+          manifest-path: flatpak/org.quixidesk.QuixiCore.yml
+          cache-key: flatpak-quixicore-${{ github.sha }}
+          run-tests: false
+
+      - name: Attach the bundle to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: quixicore.flatpak
+
+      - name: Keep the bundle as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quixicore-flatpak
+          path: quixicore.flatpak
+          retention-days: 30

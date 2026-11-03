@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Quixi Core
+Comment=QuixiDesk, Core edition — native Rust desktop workspace for AI
+Exec=quixicore-flatpak %U
+Icon=org.quixidesk.QuixiCore
+Terminal=false
+Categories=Development;Utility;
+StartupNotify=true
