@@ -5,6 +5,21 @@ Every patch applies to a pristine upstream release tarball
 here. `PKGBUILD`'s `prepare()` applies them in this order and `ci/ci.sh` verifies that chain from a
 clean extract, so the tree that ships is the tree that was tested.
 
+## Where the files live
+
+The series is filed in decimal ranges under `patches/000-099/`, ten per folder, so the directory a patch
+sits in tells you its number without opening it:
+
+```
+patches/000-099/000-009/   0001 .. 0005, 0009
+patches/000-099/010-019/   0010 .. 0019
+patches/000-099/020-029/   0020 .. 0029
+```
+
+`PKGBUILD` lists them in `source=()` under those paths and applies them from `prepare()`; `ci/ci.sh`
+reads that same order rather than sorting a directory, because the order in `prepare()` is the order
+that ships.
+
 The numbers are stable — they are quoted in commit messages, issues and these documents — so the
 gaps at `0006`–`0008` are deliberate rather than a missing file. Nothing depends on the series being
 contiguous.
@@ -24,6 +39,20 @@ contiguous.
 | 0014 | `0014-hyprland-omarchy.patch` | Hyprland and Omarchy: cursor position from the compositor's own socket, which is the one thing the Wayland path could not answer. Also fixes two detection bugs the real machine found — `HYPRLAND_INSTANCE_SIGNATURE` alone is not proof of a live session. |
 | 0015 | `0015-browser-driving-skill.patch` | A shipped `browser-driving` skill: Brave/Chromium over CDP, Firefox over WebDriver BiDi, curl only as the last resort. Installed into `<data_dir>/skills/browser-driving`. |
 | 0016 | `0016-test-portability-containers.patch` | The last two tests that still asserted the host: "more than ten applications installed" (a container ships none) and "the capture error names spectacle or grim" (a host with neither names the backends it does have). Found by running the suite in the Arch CI image, and neither assertion is weakened — only made to describe the contract rather than the machine. |
+
+| 0017 | `0017-socket-liveness.patch` | A socket file is not a running daemon. Liveness now means a connect attempt or a live unit, so a stale `/run/user/*/ydotool.sock` from a crashed process no longer reports input as available. |
+| 0018 | `0018-cli-usage.patch` | The usage text hid nine of the fourteen commands; it is generated from the same list the parser accepts, so the two cannot drift apart again. |
+| 0019 | `0019-voice-over-ipc.patch` | Voice over the IPC bridge, because `fetch()` to a custom scheme is blocked in WebKitGTK — the reason dictation and read-aloud silently did nothing in the UI while working in the engine. |
+| 0020 | `0020-dictation-referenceerror.patch` | Dictation threw `ReferenceError` on every click: a control referenced a variable that did not exist in its scope. |
+| 0021 | `0021-mac-only-capabilities.patch` | No macOS tooling in a Linux build, and no shipped skills that are useless here. |
+| 0022 | `0022-automation-bridge.patch` | The automation bridge answers: a loopback HTTP surface for driving the window in tests, off unless asked for. |
+| 0023 | `0023-mcp-platform-adapters.patch` | Sweeps a stale macOS-only adapter out of an existing MCP configuration rather than leaving it to fail at connect time. |
+| 0024 | `0024-context-button-earns-its-place.patch` | The MCP context button only appears when an external server actually exists to browse. |
+| 0025 | `0025-with-skill.patch` | `With`, shipped as a skill, so the desktop knows the compiler is installed. |
+| 0026 | `0026-edition-label.patch` | Which build is this? It says so, in bold parentheses, before the name. The value is a compile-time variable so one tree can produce any edition. |
+| 0027 | `0027-journal-and-ollama-cloud.patch` | The journal — one file per session, appended in place, written at send and on completion — and the Ollama Cloud provider entry: its own row, because the base URL, env var and model list are all known and asking a person to retype them is asking for a mistake. |
+| 0028 | `0028-no-apple-shaped-capabilities-on-linux.patch` | Eleven Apple-shaped Computer Use tools are dropped on Linux rather than offered and refused, and the prompt stops calling Computer Use an MCP server. A tool that exists and fails teaches the model false things about the desktop, and it repeats them in conversation. |
+| 0029 | `0029-daemons-on-their-own-page.patch` | Daemons, on their own page: what is running right now, answered by systemd unit state *and* a connect attempt on the port, with start, stop and remove. Remove moves the unit file aside rather than deleting it. |
 
 ## Verifying the chain
 

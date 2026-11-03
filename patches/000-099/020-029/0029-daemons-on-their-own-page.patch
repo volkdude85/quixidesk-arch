@@ -1,0 +1,386 @@
+Daemons, on their own page
+=========================
+
+A daemon is either up or it is not, and the only honest way to answer that is to ask — systemd for the
+unit state, and a connect attempt on the port. So `/api/quixi/daemons` returns a row per service with
+both answers, and the page shows them as one decision: the dot and the label are computed from the same
+value, so a row cannot read "inactive" with its light on.
+
+The controls are start, stop and remove. Remove stops the unit, disables it, and *moves the unit file
+aside* rather than deleting it — a unit file is a thing somebody wrote, and "Remove" in a window should
+not be able to lose it.
+
+Styled from theme variables throughout, so a Core build keeps its own palette; the only fixed colour is
+the green that means "running".
+
+diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.rej' ebase/QuixiDesk-3.6556.12/crates/quixi-engine/src/lib.rs ecore/QuixiDesk-3.6556.12/crates/quixi-engine/src/lib.rs
+--- a/crates/quixi-engine/src/lib.rs	2026-11-03 00:06:12.387716413 -0800
++++ b/crates/quixi-engine/src/lib.rs	2026-11-03 00:03:47.140313104 -0800
+@@ -1371,6 +1371,106 @@
+             };
+         }
+ 
++        // Daemons: what is running on this machine right now, by systemd unit and by listening port.
++        // Answering "is it up" from a live check beats a settings page that says a service "exists".
++        if clean_path == "/api/quixi/daemons" {
++            let unit_state = |unit: &str| -> String {
++                std::process::Command::new("systemctl")
++                    .args(["--user", "is-active", unit])
++                    .output()
++                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
++                    .unwrap_or_else(|_| "unknown".into())
++            };
++            let port_open = |port: u16| -> bool {
++                std::net::TcpStream::connect_timeout(
++                    &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
++                    std::time::Duration::from_millis(120),
++                )
++                .is_ok()
++            };
++            let mut list: Vec<Value> = Vec::new();
++            for (name, unit, port, what) in [
++                ("Streaming speech", "nora-talk.service", Some(8791u16), "dictation and transcription"),
++                ("Kokoro voice", "kokoro.service", Some(8765u16), "read aloud"),
++                ("Embedding index", "embeddinggemma.service", Some(42666u16), "memory recall"),
++                ("Model server", "llama-swap.service", Some(8086u16), "local models"),
++                ("Vision", "qwen3vl.service", Some(8100u16), "looking at images"),
++                ("Input injection", "ydotoold", None, "the agent driving mouse and keyboard"),
++            ] {
++                let state = if unit.is_empty() { "n/a".to_string() } else { unit_state(unit) };
++                let listening = port.map(port_open);
++                let up = match listening {
++                    Some(open) => open,
++                    None => state == "active",
++                };
++                list.push(json!({
++                    "name": name,
++                    "unit": unit,
++                    "what": what,
++                    "state": state,
++                    "port": port,
++                    "controllable": !unit.is_empty(),
++                    "listening": listening,
++                    "up": up,
++                }));
++            }
++            return Self::json_resp(200, &json!({ "daemons": list }));
++        }
++        // Daemons: act on a row. Removing a daemon means stopping it, disabling it, and moving its
++        // unit file aside rather than deleting it — a unit file is a thing someone wrote.
++        if clean_path == "/api/quixi/daemons/action" && method == "POST" {
++            let unit = body_json.get("unit").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
++            let action = body_json.get("action").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
++            if unit.is_empty() || !unit.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '@')) {
++                return Self::json_resp(400, &json!({"ok": false, "error": "That is not a unit name."}));
++            }
++            let run = |args: &[&str]| -> (bool, String) {
++                match std::process::Command::new("systemctl").args(args).output() {
++                    Ok(out) => (
++                        out.status.success(),
++                        String::from_utf8_lossy(if out.status.success() { &out.stdout } else { &out.stderr }).trim().to_string(),
++                    ),
++                    Err(e) => (false, e.to_string()),
++                }
++            };
++            match action.as_str() {
++                "start" => {
++                    let (ok, msg) = run(&["--user", "start", &unit]);
++                    return Self::json_resp(if ok { 200 } else { 500 }, &json!({"ok": ok, "message": msg}));
++                }
++                "stop" => {
++                    let (ok, msg) = run(&["--user", "stop", &unit]);
++                    return Self::json_resp(if ok { 200 } else { 500 }, &json!({"ok": ok, "message": msg}));
++                }
++                "remove" => {
++                    let (stopped, stop_msg) = run(&["--user", "stop", &unit]);
++                    let (_disabled, disable_msg) = run(&["--user", "disable", &unit]);
++                    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
++                    let dir = std::path::Path::new(&home).join(".config/systemd/user");
++                    let path = dir.join(&unit);
++                    let mut moved = String::new();
++                    if path.exists() {
++                        let stamp = std::time::SystemTime::now()
++                            .duration_since(std::time::UNIX_EPOCH)
++                            .map(|d| d.as_secs())
++                            .unwrap_or(0);
++                        let dest = dir.join(format!("{unit}.disabled-{stamp}"));
++                        moved = match std::fs::rename(&path, &dest) {
++                            Ok(()) => dest.to_string_lossy().to_string(),
++                            Err(e) => format!("could not move the unit file: {e}"),
++                        };
++                    }
++                    return Self::json_resp(200, &json!({
++                        "ok": true,
++                        "stopped": stopped,
++                        "stopMessage": stop_msg,
++                        "disableMessage": disable_msg,
++                        "unitFile": moved,
++                    }));
++                }
++                _ => return Self::json_resp(400, &json!({"ok": false, "error": "Unknown action."})),
++            }
++        }
+         if clean_path == "/api/quixi/storage/status" {
+             return Self::json_resp(200, &self.session_storage_status());
+         }
+diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.rej' ebase/QuixiDesk-3.6556.12/resources/ui/app.css ecore/QuixiDesk-3.6556.12/resources/ui/app.css
+--- a/resources/ui/app.css	2026-11-03 00:06:12.385924956 -0800
++++ b/resources/ui/app.css	2026-11-03 00:03:47.139773681 -0800
+@@ -2184,3 +2184,61 @@
+   opacity: 0.72;
+   margin-right: 0.35em;
+ }
++
++/* ---- Daemons ------------------------------------------------------------------------------
++   A row is state, not decoration: the dot is the control that flips the service, and it says up or
++   down with the same green the rest of the app uses for "running". Colours come from the theme
++   variables so a Core build keeps its own palette. */
++.daemon-list { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
++.daemon-row {
++  display: flex;
++  align-items: flex-start;
++  gap: 12px;
++  padding: 12px 10px;
++  border-radius: 10px;
++  border: 1px solid transparent;
++}
++.daemon-row:hover { background: var(--raised); border-color: var(--line); }
++.daemon-row > .grow { flex: 1 1 auto; min-width: 0; }
++.daemon-dot {
++  width: 11px; height: 11px; border-radius: 50%; margin-top: 5px; flex: 0 0 auto; padding: 0;
++  cursor: pointer; background: transparent; border: 1px solid var(--muted);
++  transition: transform .12s ease, background-color .12s ease;
++}
++.daemon-dot:hover { transform: scale(1.25); }
++.daemon-dot.on { background: #59c07a; border-color: #59c07a; box-shadow: 0 0 6px #59c07a66; }
++.daemon-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
++.daemon-meta code {
++  font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
++  background: var(--raised); padding: 1px 6px; border-radius: 5px;
++}
++.daemon-actions { display: flex; gap: 6px; flex: none; }
++.daemon-actions .danger { color: var(--danger, #e06c75); }
++.daemon-note { margin-top: 14px; }
++
++/* ---- Expandable nav sections --------------------------------------------------------------- */
++.nav-group { display: flex; flex-direction: column; gap: 1px; }
++.nav-row { display: flex; align-items: center; gap: 0; border-radius: 8px; }
++.nav-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
++.nav-disclosure {
++  flex: 0 0 26px; width: 26px; height: 100%; min-height: 26px; display: grid; place-items: center;
++  background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0;
++}
++.nav-disclosure:hover { color: var(--accent); }
++.nav-caret {
++  width: 0; height: 0;
++  border-left: 4.5px solid transparent; border-right: 4.5px solid transparent;
++  border-top: 5px solid currentColor; transition: transform .12s ease;
++}
++.nav-caret.open { transform: rotate(180deg); }
++.nav-group.is-open > .nav-row { background: color-mix(in srgb, var(--accent) 14%, transparent); }
++.nav-group.is-open > .nav-row .nav-caret { color: var(--accent); }
++.nav-children {
++  display: flex; flex-direction: column; gap: 1px; margin: 1px 0 3px 26px;
++  border-left: 1px solid var(--line); padding-left: 6px;
++}
++.nav-child {
++  display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--muted);
++  font: inherit; font-size: 12px; padding: 5px 8px; border-radius: 6px; cursor: pointer;
++}
++.nav-child:hover, .nav-child:focus-visible { color: var(--text); background: var(--raised); outline: none; }
+diff -ruN '--exclude=target' '--exclude=.git' '--exclude=*.orig' '--exclude=*.rej' ebase/QuixiDesk-3.6556.12/resources/ui/app.js ecore/QuixiDesk-3.6556.12/resources/ui/app.js
+--- a/resources/ui/app.js	2026-11-03 00:06:12.385754289 -0800
++++ b/resources/ui/app.js	2026-11-03 00:07:43.682270681 -0800
+@@ -36,6 +36,7 @@
+     projects: "M3 6h7l2 3h9v11H3zM3 6V4h7l2 2",
+     artifacts: "M4 3h12l4 4v14H4zM8 12h8M8 16h5",
+     schedule: "M12 7v5l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0",
++    daemon: "M7.5 8.6C6.3 6.4 6.5 4.4 8.1 3.8M16.5 8.6c1.2-2.2 1-4.2-.6-4.8M6.5 10c0 4 2.5 7 5.5 7s5.5-3 5.5-7M9.6 12h.01M14.4 12h.01M10.4 15.4c1 .7 2.2.7 3.2 0",
+     tools: "M5 4l15 15M16 4l4 4L8 20H4v-4z",
+     settings: "M4 7h16M4 17h16M8 4v6M16 14v6",
+     sidebar: "M3 4h18v16H3zM8 4v16",
+@@ -373,6 +374,7 @@
+       "project",
+       "artifacts",
+       "schedules",
++      "daemons",
+       "tools",
+       "settings",
+     ];
+@@ -430,8 +432,49 @@
+       ["projects", "Projects", "projects"],
+       ["artifacts", "Artifacts", "artifacts"],
+       ["schedules", "Schedules", "schedule"],
++      ["daemons", "Daemons", "daemon"],
+       ["tools", "Tools & skills", "tools"],
+     ];
++    // Expandable sections. A list you cannot open is a label; a list you can open is a place. Every
++    // group always carries at least one real row, because an expansion that opens onto nothing reads
++    // as broken rather than as empty.
++    const GROUP_ITEMS = {
++      tools: () => [
++        ["Connections", () => navigate("tools")],
++        ["Skills", () => navigate("tools")],
++        ["Computer use", () => navigate("tools")],
++      ],
++      schedules: () => [["Cron jobs", () => navigate("schedules")]],
++    };
++    const groupOpen = (page) => {
++      try { return localStorage.getItem("quixi.group." + page) === "1" } catch { return false }
++    };
++    const setGroupOpen = (page, open) => {
++      try { open ? localStorage.setItem("quixi.group." + page, "1") : localStorage.removeItem("quixi.group." + page) } catch {}
++    };
++    // The whole row is the hit target, the caret sits in its own gutter so labels line up down the
++    // column, and children indent under a guide rail.
++    function navigationGroup(page, label, ic, open, onToggle) {
++      const caret = el("span", { class: "nav-caret" + (open ? " open" : ""), "aria-hidden": "true" });
++      const toggle = el("button", {
++        class: "nav-disclosure" + (open ? " open" : ""),
++        "aria-expanded": String(open),
++        "aria-label": (open ? "Collapse " : "Expand ") + label,
++        title: (open ? "Collapse " : "Expand ") + label,
++        onclick: (event) => { event.stopPropagation(); onToggle(); },
++      }, caret);
++      const items = open
++        ? el("div", { class: "nav-children", role: "group", "aria-label": label },
++            ...(GROUP_ITEMS[page]?.() || []).map(([name, onPick]) =>
++              el("button", { class: "nav-child", tabindex: "0", onclick: onPick },
++                String(name).slice(0, 40))))
++        : null;
++      return el("div", { class: "nav-group" + (open ? " is-open" : "") },
++        el("div", { class: "nav-row" },
++          toggle,
++          navigationButton(label, ic, () => navigate(page), state.page === page ? "active" : "")),
++        items);
++    }
+     const sidebar = el(
+       "aside",
+       { class: "sidebar" },
+@@ -461,12 +504,17 @@
+           "new-task",
+         ),
+         ...nav.map(([page, label, ic]) =>
+-          navigationButton(
+-            label,
+-            ic,
+-            () => navigate(page),
+-            state.page === page ? "active" : "",
+-          ),
++          GROUP_ITEMS[page]
++            ? navigationGroup(page, label, ic, groupOpen(page), () => {
++                setGroupOpen(page, !groupOpen(page));
++                render();
++              })
++            : navigationButton(
++                label,
++                ic,
++                () => navigate(page),
++                state.page === page ? "active" : "",
++              ),
+         ),
+       ),
+       el("div", { class: "recent", id: "recents" }),
+@@ -499,6 +547,7 @@
+             project: project()?.name || "Project",
+             artifacts: "Private artifacts",
+             schedules: "Schedules",
++            daemons: "Daemons",
+             tools: "Tools & skills",
+             settings: "Settings",
+           }[state.page];
+@@ -673,6 +722,7 @@
+       project: workspaceUI.projectPage,
+       artifacts: workspaceUI.artifactsPage,
+       schedules: schedulesPage,
++      daemons: daemonsPage,
+       tools: capabilityUI.renderTools,
+       settings: settingsPage,
+     };
+@@ -2123,6 +2173,86 @@
+       toast(e.message, true);
+     }
+   }
++  // Daemons: what is running on this machine, checked by asking systemd and by knocking on the
++  // port. A settings page that says a service "exists" answers a different question than the one a
++  // person has, which is whether the thing is up right now.
++  async function daemonsPage(host) {
++    const body = el("div", { class: "daemon-list" },
++      el("p", { class: "muted" }, "Asking systemd and the loopback ports…"));
++    host.replaceChildren(
++      header("Daemons",
++        "Background services this machine leans on. Nothing here is required to start the app.",
++        button("Check again", () => renderPage(), "quiet")),
++      el("p", { class: "muted" },
++        "A daemon answers on a port or it does not. The state below is a live check, not a setting that says a service exists."),
++      body,
++    );
++    const get = async (path, payload) => {
++      const res = await fetch(path, payload
++        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
++        : undefined);
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
++      return data;
++    };
++    let data = null;
++    try { data = await get("/api/quixi/daemons"); } catch (e) { data = null; }
++    if (!data || !data.daemons) {
++      body.replaceChildren(el("p", { class: "error-text" }, "Could not read the daemon list."));
++      return;
++    }
++    const act = async (d, action) => {
++      if (!d.controllable) return toast(`${d.name} is not a service this app can control.`, true);
++      if (action === "remove") {
++        const ok = await new Promise((resolve) => {
++          let answered = false;
++          const dlg = dialog(`Remove ${d.name}?`, el("div", { class: "browser-chooser" },
++            el("p", {}, `That stops and disables ${d.unit}, and moves its unit file aside.`),
++            el("p", { class: "muted" }, "It is not deleted — the file is renamed and can be put back."),
++            el("div", { class: "browser-chooser-list" },
++              button("Remove it", () => { answered = true; dlg.close(); resolve(true); }, "primary"),
++              button("Leave it alone", () => { answered = true; dlg.close(); resolve(false); }, "quiet"))));
++          dlg.addEventListener("close", () => { if (!answered) resolve(false); });
++        });
++        if (!ok) return;
++      }
++      try {
++        const res = await get("/api/quixi/daemons/action", { unit: d.unit, action });
++        if (res && res.ok === false) throw new Error(res.error || "systemd refused");
++        if (action === "remove" && res && res.unitFile) toast(`${d.name} removed. The unit file is at ${res.unitFile}`);
++        else toast(`${d.name}: ${action === "start" ? "starting" : "stopping"}…`);
++        await renderPage();
++      } catch (e) {
++        toast(String(e && e.message ? e.message : e), true);
++      }
++    };
++    body.replaceChildren(
++      ...data.daemons.map((d) =>
++        el("div", { class: "daemon-row" + (d.up ? " up" : "") },
++          el("button", {
++            class: "daemon-dot" + (d.up ? " on" : ""),
++            title: d.up ? `Stop ${d.name}` : `Start ${d.name}`,
++            "aria-label": d.up ? `Stop ${d.name}` : `Start ${d.name}`,
++            "aria-pressed": d.up ? "true" : "false",
++            onclick: () => act(d, d.up ? "stop" : "start"),
++          }),
++          el("div", { class: "grow" },
++            el("strong", {}, d.name),
++            el("span", { class: "muted" }, " — " + d.what),
++            el("div", { class: "daemon-meta" },
++              el("code", {}, d.unit || "no unit"),
++              d.port ? el("code", {}, ":" + d.port) : null,
++              el("span", { class: "tag" }, d.up ? "up" : "down"),
++              el("span", { class: "muted small" }, d.state || ""))),
++          d.controllable
++            ? el("div", { class: "daemon-actions" },
++                button(d.up ? "Stop" : "Start", () => act(d, d.up ? "stop" : "start"), "quiet"),
++                button("Remove", () => act(d, "remove"), "quiet danger"))
++            : null)),
++      el("p", { class: "muted small daemon-note" },
++        "To create a daemon, open a new instance and ask — this page shows what is running, it does not write units."),
++    );
++  }
+   function schedulesPage(host) {
+     host.replaceChildren(
+       header(

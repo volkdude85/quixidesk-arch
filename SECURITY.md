@@ -35,3 +35,24 @@ tell the two apart.
 
 The current `pkgver` in the PKGBUILD, and nothing else. This is a packaging repository: it tracks
 upstream releases rather than maintaining branches, so a fix lands as a new version.
+
+## What is not in this repository
+
+Audited at packaging time, and it holds for every release cut from this tree:
+
+- **No credentials.** No API keys, tokens, account identifiers or `.env` contents. The single string
+  `OLLAMA_API_KEY`-style occurrence in the series is an environment *variable name* in a provider
+  definition (`OLLAMA_API_KEY`), which is the name the app reads, not a value.
+- **No personal data.** No home directory paths, no street address, no phone number, no personal email,
+  no legal or family names. Patches are cut against `a/`…`b/` paths, not against a machine.
+- **No runtime state.** `providers.json`, `credentials.key`, `preferences.json`, `voice.json` and the
+  data directory are refused by `.gitignore`; a key somebody pasted lives in their data directory and
+  never in a tree.
+- **Nothing macOS-shaped is advertised on Linux** (0028), so a Linux build cannot be asked for a
+  permission prompt or an accessibility tree that does not exist here.
+
+Re-run the audit any time with:
+
+```sh
+git grep -nIE '/home/[a-z]|\bSean\b|sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|hf_[A-Za-z0-9]{20,}|\b(971|503)[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b' -- .
+```
