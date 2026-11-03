@@ -1,14 +1,18 @@
 name: flatpak
 
-# The Core edition's Flatpak: built on a tag, attached to the release, and available as a workflow
-# artifact so it can be installed by hand without a store review.
+# Builds the Flatpak so it can be tested and installed by hand. NOTHING is published: no tag trigger,
+# no release asset, no Pages repository, no store submission. Run it from the Actions tab with
+# "Run workflow"; the bundle comes back as a workflow artifact you can download and
+# `flatpak install ./quixicore.flatpak`.
+#
+# To publish later, three things have to exist first and none of them do: a signing key in repository
+# secrets, a public (or paid-plan) host for the OSTree repository, and a Flathub submission that has
+# passed review.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -19,23 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build the bundle
+      - name: Build QuixiCore Linux
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: quixicore.flatpak
           manifest-path: flatpak/org.quixidesk.QuixiCore.yml
-          cache-key: flatpak-quixicore-${{ github.sha }}
+          cache-key: flatpak-org-quixidesk-QuixiCore-${{ github.sha }}
           run-tests: false
-
-      - name: Attach the bundle to the release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: quixicore.flatpak
 
       - name: Keep the bundle as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: quixicore-flatpak
+          name: quixicore-bundle
           path: quixicore.flatpak
           retention-days: 30
