@@ -92,6 +92,8 @@ escape from immutability, because plain Arch was never immutable to begin with.
 
 ## What we do not do
 
-We do not ship a Flatpak. Flatpak is the sanctioned way to put software on a Deck and we have not built
-one, so the two supported routes are A and B. If a SteamOS update removes the app, that is expected
-behaviour for Route A, not a bug.
+We do not ship a Flatpak, and this edition will not: the packaging is the PKGBUILD, built from source
+against the distro's own webkit2gtk and GTK. Flatpak is the sanctioned route onto a Deck, so the two
+supported routes here are A and B. If a SteamOS update removes the app, that is expected behaviour for
+Route A, not a bug — and it is the trade this edition makes on purpose, rather than shipping a sandbox
+that cannot reach the things this app is for.
