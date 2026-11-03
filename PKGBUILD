@@ -83,6 +83,7 @@ conflicts=('quixidesk-bin' 'quixidesk-git')
 source=(
   "0027-journal-and-ollama-cloud.patch"
   "0026-edition-label.patch"
+  "0028-no-apple-shaped-capabilities-on-linux.patch"
   "${pkgname}-${pkgver}.tar.gz::https://github.com/QuixiAI/QuixiDesk/archive/refs/tags/v${pkgver}.tar.gz"
   "ydotoold.openrc"
   "DESIGN-NOTES-linux.md"
@@ -135,7 +136,8 @@ sha256sums=('bd4a041fc9b87647c0ba2eb59f204f8086a33f3f5006c8c4c1ccb11b19a62bac'
             'ceb4036eba11f8de33794fe172e3497a3ed457dc197d71e74467be180fdfade4'
             '8f86f78d6b432ae6d7b5f29722b6d890403ec7a459a9551774574a2e47400261'
             'fdec7973c11cf751413aee8ba157cd9a7b8684c111e1baa974e3b91e2ed079d0'
-            'cef94bf03388b234d141b70a935129f2fea71ebe8b017c4690e04e714ce10dc8')
+            'cef94bf03388b234d141b70a935129f2fea71ebe8b017c4690e04e714ce10dc8'
+            '28909ae23efa41461f476d6ae31ce98b211b192ce394c1ea6e1fb0fd9060bdce')
 
 _libdir="/usr/lib/${pkgname}"
 
@@ -260,6 +262,9 @@ prepare() {
   # Edition label: which build this is, in bold parentheses in front of the name. The
   # value is a compile-time variable so the same tree can produce any edition.
   patch -Np1 -i "${srcdir}/0026-edition-label.patch"
+
+  # Nothing Apple-shaped is advertised on Linux, and the prompt says what this machine offers.
+  patch -Np1 -i "${srcdir}/0028-no-apple-shaped-capabilities-on-linux.patch"
 
   # Fetch AFTER the patches so the fetched set matches what the build will use.
   cargo fetch --locked --target x86_64-unknown-linux-gnu
