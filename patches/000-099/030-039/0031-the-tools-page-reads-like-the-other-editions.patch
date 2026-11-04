@@ -2,27 +2,29 @@ The tools page reads like the other editions'
 ==============================================
 
 Core shipped the old skills section: one flat list with a search box, sitting under a wall of connection
-cards, with no way to tell the build's own skills from the agent's library on this machine. The two other
-editions had moved on and this one had not.
+cards, with no way to tell the build's own skills from the agent's library on this machine.
 
 What it has now:
 
   * skills first, connections after — the page is called "Tools & skills" and the instructions are what
     a person opens it for;
-  * two libraries, each with its own search: what this build ships, and the Hermes library discovered
-    from the profiles on this machine, grouped by area so a hundred skills are navigable;
-  * the per-panel counter ("7 of 7") and the area chips;
-  * the whole-page search across connections, tools and skills, with the observer-loop fix — every write
-    in it is conditional, so typing cannot re-fire the observer on its own output and wedge the page.
+  * two libraries, each with its own search, its area chips and a counter: what this build ships, and
+    the Hermes library discovered from the profiles on this machine;
+  * the whole-page search across connections, tools and skills, with every write conditional so typing
+    cannot re-fire the observer on its own output and wedge the page.
 
-There is no third panel here on purpose: this edition ships upstream's skills and its own, and has no
-"volkdude85" library to show. The split is by whether a skill came from a Hermes root, which needs no
-manifest owner field.
+The panels group on the engine's `owner`, and the engine now reports it: a skill the manifest names is
+`quixidesk`, one found in the user's own directory is `user`, and one found by walking a mounted Hermes
+root is `hermes`. That last one is the bug this fixes — the page used to infer provenance from a slash in
+the skill id, and a Hermes skill sitting at the TOP of a root has no slash, so 21 of them were filed under
+the build's own panel as if this edition had written them. The id is a name; the owner is a fact.
+
+No third panel: this edition has no "volkdude85" library to show.
 
 ---
 --- a/resources/ui/capability-workflows.js
 +++ b/resources/ui/capability-workflows.js
-@@ -163,37 +163,118 @@
+@@ -163,37 +163,123 @@
        if (!Array.isArray(files) || !files.length) throw new Error("This skill’s instructions could not be loaded.");
        return files;
      }
@@ -105,14 +107,19 @@ manifest owner field.
 +        query, results);
 +    }
 +    function skillsSection(skills) {
-+      const isHermes = (s) => skillArea(s) !== "";
++      // Grouped by the engine's `owner`, not by a slash in the id. A Hermes skill sitting at the top of
++      // a root has no area segment, and reading that as "no area means this build shipped it" filed 21
++      // of them under the build's own panel. The id is a name; the owner is a fact.
++      const ownerOf = (s) => s.owner || "quixidesk";
++      const own = skills.filter((s) => ownerOf(s) !== "hermes");
++      const hers = skills.filter((s) => ownerOf(s) === "hermes");
 +      return el("div", { class: "skill-libraries" },
 +        skillPanel("QuixiDesk tools & skills",
 +          "What ships with this build: the office-document skills, plus anything added here by hand.",
-+          skills.filter((s) => !isHermes(s))),
++          own),
 +        skillPanel("Hermes",
 +          "Hermes already maintains a large, established library of tools and procedures. This is a live tap into it — read from the Hermes profiles on this machine and grouped by area — so the agent starts from what has already been proven.",
-+          skills.filter(isHermes)));
++          hers));
 +    }
 +    // One search across connections, the tools inside them, and skills. Skills had a filter of their
 +    // own and connections had none, so finding a tool you had already configured meant reading every
@@ -183,3 +190,38 @@ manifest owner field.
 +.area-bar button.active, .toolbar button.active { color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 +.skill-card .tag { align-self: flex-start; margin-bottom: 4px; }
 +.skill-file { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 11px; max-height: 320px; overflow: auto; }
+--- a/crates/quixi-engine/src/lib.rs
++++ b/crates/quixi-engine/src/lib.rs
+@@ -594,6 +594,8 @@
+                                 "name": name,
+                                 "displayName": name,
+                                 "description": desc,
++                                // The manifest is the only place that can say who made a skill.
++                                "owner": s.get("owner").and_then(|v| v.as_str()).unwrap_or("quixidesk"),
+                                 "updatedAt": now_iso,
+                                 "enabled": true,
+                             }));
+@@ -630,11 +632,23 @@
+                 let desc = fs::read_to_string(&md_path)
+                     .map(|c| Self::skill_description(&c))
+                     .unwrap_or_else(|_| "Custom QuixiDesk skill".to_string());
++                // Where the skill came from, not what its path looks like. A Hermes skill that sits at
++                // the top of a root has no area segment, and guessing from the id filed 21 of them under
++                // the build's own panel as if the edition had written them.
++                let bundled_root = self.resources_dir.join("bundled-skills-extracted");
++                let owner = if root == bundled_root {
++                    "quixidesk"
++                } else if root == self.data_dir.join("skills") {
++                    "user"
++                } else {
++                    "hermes"
++                };
+                 skills.push(json!({
+                     "skillId": skill_id,
+                     "name": skill_id,
+                     "displayName": skill_id,
+                     "description": desc,
++                    "owner": owner,
+                     "path": dir.display().to_string(),
+                     "updatedAt": now_iso,
+                     "enabled": true,

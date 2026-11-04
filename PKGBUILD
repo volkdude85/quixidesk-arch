@@ -17,7 +17,7 @@
 
 pkgname=quixidesk
 pkgver=3.6556.12
-pkgrel=5
+pkgrel=6
 pkgdesc="Native Rust desktop workspace for AI — pluggable cloud and local providers, MCP tools, projects, schedules"
 arch=('x86_64')
 # GCC LTO must be off. makepkg appends -flto=auto to CFLAGS/LDFLAGS by default;
@@ -119,7 +119,7 @@ sha256sums=(
             '28909ae23efa41461f476d6ae31ce98b211b192ce394c1ea6e1fb0fd9060bdce'
             'a8e80a3105f02a2c00de440a7352d6425320baf782ebd21ea763b3c63e6c801b'
             '973a1f3e2309fd67e59d4879c5a84117caa024805b9c13abb1659e40931fb496'
-            '6a64cad24829d00e8a9d5677d9a4a2b72f516acec3dde2bfe26a36cfe0a575f6'
+            '2d3aff9e717be22986ece593caca4ef0999e2cc37d62149902f48a9325ba20c9'
             '0d447af0ebe5a9aa447e45cffe183c077647637994eb71ec22a29a179742484e'
             '7f0469f375334b97b3c046d0384bfd68a6f9157871c8b881f3f822ee1916e57c'
             '285268b1aacedd95c4b47619dfc20a8f229ef8ba31e5c31328d479be63a336f8'
