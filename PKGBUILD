@@ -17,7 +17,7 @@
 
 pkgname=quixidesk
 pkgver=3.6556.12
-pkgrel=4
+pkgrel=5
 pkgdesc="Native Rust desktop workspace for AI — pluggable cloud and local providers, MCP tools, projects, schedules"
 arch=('x86_64')
 # GCC LTO must be off. makepkg appends -flto=auto to CFLAGS/LDFLAGS by default;
@@ -86,6 +86,7 @@ source=(
   "0028-no-apple-shaped-capabilities-on-linux.patch"
   "0029-daemons-on-their-own-page.patch"
   "0030-the-automation-bridge-reads-the-page-back.patch"
+  "0031-the-tools-page-reads-like-the-other-editions.patch"
   "${pkgname}-${pkgver}.tar.gz::https://github.com/QuixiAI/QuixiDesk/archive/refs/tags/v${pkgver}.tar.gz"
   "ydotoold.openrc"
   "DESIGN-NOTES-linux.md"
@@ -113,36 +114,37 @@ source=(
   "0025-with-skill.patch"
 )
 sha256sums=(
-  'bd4a041fc9b87647c0ba2eb59f204f8086a33f3f5006c8c4c1ccb11b19a62bac'
-  'f090805ad11ddd9a757f3f7f54eb13c32f013feb357571a658ea3fda492d4d94'
-  '28909ae23efa41461f476d6ae31ce98b211b192ce394c1ea6e1fb0fd9060bdce'
-  'a8e80a3105f02a2c00de440a7352d6425320baf782ebd21ea763b3c63e6c801b'
-  '973a1f3e2309fd67e59d4879c5a84117caa024805b9c13abb1659e40931fb496'
-  '0d447af0ebe5a9aa447e45cffe183c077647637994eb71ec22a29a179742484e'
-  '7f0469f375334b97b3c046d0384bfd68a6f9157871c8b881f3f822ee1916e57c'
-  '285268b1aacedd95c4b47619dfc20a8f229ef8ba31e5c31328d479be63a336f8'
-  '79758ab34409ccbdc70e080375df6d15ad627e6ac830375519c5df48fdba4531'
-  'd580530714d6841162564bd82251995bf67a80a822719aa637348c54e2b726b4'
-  'ed53227a2493c19b80fe398a4f62a048a8e88947b5f3502bd474dedea5e3d633'
-  'ff1a73fe454f996b749c9351f0e8b0df9f4ca7271a5ee27bc543a4a4faa1d1e0'
-  '10181259810a41635a48c43f3e33d2b3e363ad5b0e24e5fa044b09fd3fd95472'
-  '780223f1c89e646688ac10a36c5c084bea727f46882aa8b9289dd83fd47de62a'
-  '699cf11a5ac749a7563852f92c4b229da257b843dd3dcd1145be2d585896de91'
-  'bc60f83eb492d1fcda4e5e26ef1998095586f088d9c8cc8ea4c34d01054d735b'
-  'f2d9c341719739a046d922c5cdfd580e4eb14a8f9926caf5db7209dc6593a0ed'
-  '7d38a6f1b9d6a8b2e9765b07869672f68072eef81b6d24315646cec025893976'
-  '48b49483972b25daaa046373c8f287107f0c736b2521136f1129a93a1c65cb43'
-  '1649012b497ace0398f426a13ff3ef431fac42ad2c17ad08479ecf59eb09d885'
-  '1ca4dd4c40bb5219c8f24f241968ffc25806ed9e59143b886e1e97d103d06b98'
-  'b115045fc24a96f3d9edc103b8c1ddd867d4da29a83d61b73c38a073b765baeb'
-  '34aa447b71deb28ff65d819075b85636c4c27245ab98dab6bc8fc719228ef0f6'
-  '61b3c4626a7be1f33890fef816abb2ed32671449acae147c450518712727da1a'
-  '13b2bfc9da3499921c4b291c4e12c0580232eceb175982fe07293f3b9021ff07'
-  '30728bc944866cd8d7552bb6fc6a65953ce35e9cb06d4eff34990d9bd16e8fec'
-  'ceb4036eba11f8de33794fe172e3497a3ed457dc197d71e74467be180fdfade4'
-  '8f86f78d6b432ae6d7b5f29722b6d890403ec7a459a9551774574a2e47400261'
-  'fdec7973c11cf751413aee8ba157cd9a7b8684c111e1baa974e3b91e2ed079d0'
-  'cef94bf03388b234d141b70a935129f2fea71ebe8b017c4690e04e714ce10dc8'
+            'bd4a041fc9b87647c0ba2eb59f204f8086a33f3f5006c8c4c1ccb11b19a62bac'
+            'f090805ad11ddd9a757f3f7f54eb13c32f013feb357571a658ea3fda492d4d94'
+            '28909ae23efa41461f476d6ae31ce98b211b192ce394c1ea6e1fb0fd9060bdce'
+            'a8e80a3105f02a2c00de440a7352d6425320baf782ebd21ea763b3c63e6c801b'
+            '973a1f3e2309fd67e59d4879c5a84117caa024805b9c13abb1659e40931fb496'
+            '6a64cad24829d00e8a9d5677d9a4a2b72f516acec3dde2bfe26a36cfe0a575f6'
+            '0d447af0ebe5a9aa447e45cffe183c077647637994eb71ec22a29a179742484e'
+            '7f0469f375334b97b3c046d0384bfd68a6f9157871c8b881f3f822ee1916e57c'
+            '285268b1aacedd95c4b47619dfc20a8f229ef8ba31e5c31328d479be63a336f8'
+            '79758ab34409ccbdc70e080375df6d15ad627e6ac830375519c5df48fdba4531'
+            'd580530714d6841162564bd82251995bf67a80a822719aa637348c54e2b726b4'
+            'ed53227a2493c19b80fe398a4f62a048a8e88947b5f3502bd474dedea5e3d633'
+            'ff1a73fe454f996b749c9351f0e8b0df9f4ca7271a5ee27bc543a4a4faa1d1e0'
+            '10181259810a41635a48c43f3e33d2b3e363ad5b0e24e5fa044b09fd3fd95472'
+            '780223f1c89e646688ac10a36c5c084bea727f46882aa8b9289dd83fd47de62a'
+            '699cf11a5ac749a7563852f92c4b229da257b843dd3dcd1145be2d585896de91'
+            'bc60f83eb492d1fcda4e5e26ef1998095586f088d9c8cc8ea4c34d01054d735b'
+            'f2d9c341719739a046d922c5cdfd580e4eb14a8f9926caf5db7209dc6593a0ed'
+            '7d38a6f1b9d6a8b2e9765b07869672f68072eef81b6d24315646cec025893976'
+            '48b49483972b25daaa046373c8f287107f0c736b2521136f1129a93a1c65cb43'
+            '1649012b497ace0398f426a13ff3ef431fac42ad2c17ad08479ecf59eb09d885'
+            '1ca4dd4c40bb5219c8f24f241968ffc25806ed9e59143b886e1e97d103d06b98'
+            'b115045fc24a96f3d9edc103b8c1ddd867d4da29a83d61b73c38a073b765baeb'
+            '34aa447b71deb28ff65d819075b85636c4c27245ab98dab6bc8fc719228ef0f6'
+            '61b3c4626a7be1f33890fef816abb2ed32671449acae147c450518712727da1a'
+            '13b2bfc9da3499921c4b291c4e12c0580232eceb175982fe07293f3b9021ff07'
+            '30728bc944866cd8d7552bb6fc6a65953ce35e9cb06d4eff34990d9bd16e8fec'
+            'ceb4036eba11f8de33794fe172e3497a3ed457dc197d71e74467be180fdfade4'
+            '8f86f78d6b432ae6d7b5f29722b6d890403ec7a459a9551774574a2e47400261'
+            'fdec7973c11cf751413aee8ba157cd9a7b8684c111e1baa974e3b91e2ed079d0'
+            'cef94bf03388b234d141b70a935129f2fea71ebe8b017c4690e04e714ce10dc8'
 )
 
 _libdir="/usr/lib/${pkgname}"
@@ -277,6 +279,9 @@ prepare() {
 
   # The daemon list belongs to the machine: it comes from <data_dir>/daemons.json.
   patch -Np1 -i "${srcdir}/0030-the-automation-bridge-reads-the-page-back.patch"
+  # The tools page: skills first, two libraries with their own searches, and the search that
+  # does not re-fire its own observer.
+  patch -Np1 -i "${srcdir}/0031-the-tools-page-reads-like-the-other-editions.patch"
 
   # Fetch AFTER the patches so the fetched set matches what the build will use.
   cargo fetch --locked --target x86_64-unknown-linux-gnu

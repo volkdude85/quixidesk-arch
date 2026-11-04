@@ -1,0 +1,185 @@
+The tools page reads like the other editions'
+==============================================
+
+Core shipped the old skills section: one flat list with a search box, sitting under a wall of connection
+cards, with no way to tell the build's own skills from the agent's library on this machine. The two other
+editions had moved on and this one had not.
+
+What it has now:
+
+  * skills first, connections after — the page is called "Tools & skills" and the instructions are what
+    a person opens it for;
+  * two libraries, each with its own search: what this build ships, and the Hermes library discovered
+    from the profiles on this machine, grouped by area so a hundred skills are navigable;
+  * the per-panel counter ("7 of 7") and the area chips;
+  * the whole-page search across connections, tools and skills, with the observer-loop fix — every write
+    in it is conditional, so typing cannot re-fire the observer on its own output and wedge the page.
+
+There is no third panel here on purpose: this edition ships upstream's skills and its own, and has no
+"volkdude85" library to show. The split is by whether a skill came from a Hermes root, which needs no
+manifest owner field.
+
+---
+--- a/resources/ui/capability-workflows.js
++++ b/resources/ui/capability-workflows.js
+@@ -163,37 +163,118 @@
+       if (!Array.isArray(files) || !files.length) throw new Error("This skill’s instructions could not be loaded.");
+       return files;
+     }
+-    function skillsSection(skills) {
+-      const names={docx:"Word documents",pdf:"PDF editing","pdf-reading":"Read PDFs",pptx:"Presentations",xlsx:"Spreadsheets","frontend-design":"Interface design"};
+-      const query = el("input", { type: "search", placeholder: "Search skills", "aria-label": "Search skills" });
++    // Two libraries, two searches. What the build ships, and the agent's own library read from the
++    // Hermes roots on this machine — grouped by area so a hundred skills are navigable instead of a
++    // scroll. Mixing them in one list made the small set look like the whole thing.
++    const skillNames = {docx:"Word documents",pdf:"PDF editing","pdf-reading":"Read PDFs",
++                        pptx:"Presentations",xlsx:"Spreadsheets","frontend-design":"Interface design"};
++    function skillArea(skill) {
++      const id = String(skill.skillId || skill.name || "");
++      const slash = id.indexOf("/");
++      return slash > 0 ? id.slice(0, slash) : "";
++    }
++    function skillList(skills, query, areas) {
++      const needle = query.trim().toLocaleLowerCase();
++      return skills.filter((skill) => {
++        const hay = `${skill.displayName || ""} ${skill.skillId || skill.name || ""} ${skill.description || ""} ${skillArea(skill)}`;
++        if (needle && !hay.toLocaleLowerCase().includes(needle)) return false;
++        if (areas && areas.size && !areas.has(skillArea(skill) || "misc")) return false;
++        return true;
++      });
++    }
++    function skillCard(skill) {
++      return el("article", { class: "card skill-card" },
++        el("h3", {}, skill.displayName || skillNames[skill.name] || skill.name),
++        skillArea(skill) ? el("span", { class: "tag" }, skillArea(skill)) : null,
++        el("p", {}, skill.description || "Instructions for a task workflow."),
++        button("Try in a new task", async () => { const files = await readSkill(skill); await ctx.startSkill(skill, files); }, "primary"),
++        button("Read instructions", async () => {
++          const files = await readSkill(skill);
++          dialog(skill.displayName || skill.name, files.map((file) => el("details", { open: file.path === "SKILL.md" }, el("summary", {}, file.path),
++            file.path === "SKILL.md" ? plainBody((file.content || "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")) : el("pre", {}, file.content || ""))), { wide: true });
++        }, "quiet"));
++    }
++    function skillPanel(title, blurb, skills) {
++      const query = el("input", { type: "search", placeholder: `Search ${title}`, "aria-label": `Search ${title}` });
++      const areaBar = el("div", { class: "area-bar" });
+       const results = el("div", { class: "cards" });
+       const count = el("p", { class: "hint", role: "status" });
+-      function draw() {
+-        const needle = query.value.trim().toLocaleLowerCase();
+-        const matches = skills.filter((skill) => `${skill.displayName || ""} ${skill.name || ""} ${skill.description || ""}`.toLocaleLowerCase().includes(needle));
+-        count.textContent = `${matches.length} ${matches.length === 1 ? "skill" : "skills"}`;
+-        results.replaceChildren(...matches.map((skill) => el("article", { class: "card skill-card" },
+-          el("h3", {}, skill.displayName || names[skill.name] || skill.name), el("p", {}, skill.description || "Instructions for a task workflow."),
+-          button("Try in a new task", async () => { const files = await readSkill(skill); await ctx.startSkill(skill, files); }, "primary"),
+-          button("Read instructions", async () => {
+-            const files = await readSkill(skill);
+-            dialog(skill.displayName || skill.name, files.map((file) => el("details", { open: file.path === "SKILL.md" }, el("summary", {}, file.path),
+-              file.path === "SKILL.md" ? plainBody((file.content || "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")) : el("pre", {}, file.content || ""))), { wide: true });
+-          }, "quiet"))));
+-        if (!matches.length) results.append(el("p", { class: "muted" }, needle ? "No skills match this search." : "No skills are installed."));
+-      }
+-      query.addEventListener("input", draw); draw();
+-      return el("section", { class: "skills-section" }, el("h2", {}, "Skills"),
+-        el("p", { class: "muted" }, "Start a task with a skill’s instructions attached, then describe what you want to do."), query, count, results);
++      const areas = new Set();
++      const allAreas = [...new Set(skills.map((s) => skillArea(s) || "misc"))].sort();
++      const drawAreas = () => {
++        areaBar.replaceChildren(
++          button("All", () => { areas.clear(); drawAreas(); draw(); }, areas.size ? "quiet" : "quiet active"),
++          ...allAreas.slice(0, 18).map((area) =>
++            button(`${area}`, () => { areas.has(area) ? areas.delete(area) : areas.add(area); drawAreas(); draw(); },
++              "quiet" + (areas.has(area) ? " active" : ""))));
++      };
++      const draw = () => {
++        const matched = skillList(skills, query.value, areas);
++        count.textContent = `${matched.length} of ${skills.length}`;
++        results.replaceChildren(...matched.map((s) => skillCard(s)));
++      };
++      query.addEventListener("input", draw);
++      drawAreas(); draw();
++      return el("section", { class: "skill-library" },
++        el("div", { class: "row" }, el("h2", { class: "grow" }, title), count),
++        el("p", { class: "muted" }, blurb),
++        allAreas.length > 1 ? areaBar : null,
++        query, results);
++    }
++    function skillsSection(skills) {
++      const isHermes = (s) => skillArea(s) !== "";
++      return el("div", { class: "skill-libraries" },
++        skillPanel("QuixiDesk tools & skills",
++          "What ships with this build: the office-document skills, plus anything added here by hand.",
++          skills.filter((s) => !isHermes(s))),
++        skillPanel("Hermes",
++          "Hermes already maintains a large, established library of tools and procedures. This is a live tap into it — read from the Hermes profiles on this machine and grouped by area — so the agent starts from what has already been proven.",
++          skills.filter(isHermes)));
++    }
++    // One search across connections, the tools inside them, and skills. Skills had a filter of their
++    // own and connections had none, so finding a tool you had already configured meant reading every
++    // card on the page.
++    function toolsFilter() {
++      const input = el("input", {
++        type: "search", class: "tools-search",
++        placeholder: "Search connections, tools and skills",
++        "aria-label": "Search connections, tools and skills",
++      });
++      const status = el("p", { class: "hint", role: "status" });
++      // Every write here is conditional: this runs from an observer on the document, so an
++      // unconditional `status.textContent = …` re-fires the observer on its own output and the page
++      // spins. Typing one character in this box hung the window before this was fixed.
++      const apply = () => {
++        const needle = input.value.trim().toLocaleLowerCase();
++        let shown = 0;
++        let total = 0;
++        for (const node of document.querySelectorAll("#mcp-connections [data-server], .cards .skill-card")) {
++          total += 1;
++          const hit = !needle || node.textContent.toLocaleLowerCase().includes(needle);
++          if (node.hidden === hit) node.hidden = !hit;
++          if (hit) shown += 1;
++        }
++        const text = needle ? `${shown} of ${total} match "${input.value.trim()}"` : "";
++        if (status.textContent !== text) status.textContent = text;
++      };
++      input.addEventListener("input", apply);
++      new MutationObserver(apply).observe(document.body, { childList: true, subtree: true });
++      return el("div", { class: "tools-filter" }, input, status);
+     }
+     function renderTools(host) {
+       const data = ctx.getToolsData();
+-      host.replaceChildren(header("Tools & skills", "Connect services and start tasks with reusable instructions."),
++      // Skills first. This page is called "Tools & skills" and it opened with a wall of connection
++      // cards, which pushed the libraries below the fold — the instructions a person came to read sat
++      // under the plumbing they did not. The order now matches the name.
++      host.replaceChildren(header("Tools & skills", "Reusable instructions first, the connections that feed them below."),
++        toolsFilter(),
++        skillsSection(data.skills || []),
++        el("hr"),
+         el("div", { class: "row" }, el("h2", { class: "grow" }, "Connections"),
+           button("Add connection", () => connectionEditor(), "primary"), button("Advanced JSON", ctx.advancedMcpEditor, "quiet")),
+         el("p", { class: "muted" }, "Ready means initialization and tool discovery completed. Sign-in requests, failures and last-known catalogs stay visible."),
+         el("p", { id: "mcp-load-error", class: "error-text", role: "alert", hidden: !data.error }, data.error || ""),
+-        el("div", { id: "mcp-connections", class: "mcp-connections" }), el("hr"), skillsSection(data.skills || []));
++        el("div", { id: "mcp-connections", class: "mcp-connections" }));
+       ctx.updateMcpConnections(); enhanceConnections();
+     }
+ 
+--- a/resources/ui/app.css
++++ b/resources/ui/app.css
+@@ -2242,3 +2242,17 @@
+   font: inherit; font-size: 12px; padding: 5px 8px; border-radius: 6px; cursor: pointer;
+ }
+ .nav-child:hover, .nav-child:focus-visible { color: var(--text); background: var(--raised); outline: none; }
++
++/* One filter across connections, tools and skills. */
++.tools-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; }
++.tools-filter input { flex: 1; min-width: 220px; }
++.tools-filter .hint { margin: 0; white-space: nowrap; }
++
++/* Two skill libraries, two searches. */
++.skill-libraries { display: flex; flex-direction: column; gap: 28px; }
++.skill-library { display: flex; flex-direction: column; gap: 8px; }
++.skill-library input[type="search"] { max-width: 420px; }
++.area-bar { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
++.area-bar button.active, .toolbar button.active { color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
++.skill-card .tag { align-self: flex-start; margin-bottom: 4px; }
++.skill-file { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 11px; max-height: 320px; overflow: auto; }
